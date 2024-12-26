@@ -71,6 +71,7 @@ glm::mat4 cameraModel;
 
 // for HW4 parameter
 bool explosion = false;
+bool show_alien = false;
 
 //////////////////////////////////////////////////////////////////////////
 // Parameter setup, 
@@ -138,7 +139,7 @@ void shader_setup(){
 #endif
 
     std::vector<std::string> shadingMethod = {
-        "default", "gouraud", "fur", "explode", "alert", "grow", "rotate"
+        "default", "gouraud", "alert", "fur", "explode", "grow", "rotate"
     };
 
     for(int i=0; i<shadingMethod.size(); i++){
@@ -276,23 +277,34 @@ void render(){
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
     
     // 渲染 Alien
-    shaderPrograms[alienProgramIndex]->use();
-    shaderPrograms[alienProgramIndex]->set_uniform_value("model", alienModel);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("view", view);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("projection", projection);
-    float alien_time = glfwGetTime();
-    shaderPrograms[alienProgramIndex]->set_uniform_value("time", alien_time);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("material.ambient", material.ambient);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("material.diffuse", material.diffuse);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("material.specular", material.specular);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("material.gloss", material.gloss);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("light.position", light.position);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("light.ambient", light.ambient);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("light.diffuse", light.diffuse);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("light.specular", light.specular);
-    shaderPrograms[alienProgramIndex]->set_uniform_value("CameraPos", glm::vec3(cameraModel[3]));
-    alien.object->render();
-    shaderPrograms[alienProgramIndex]->release();
+    if (show_alien){
+        shaderPrograms[alienProgramIndex]->use();
+        shaderPrograms[alienProgramIndex]->set_uniform_value("model", alienModel);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("view", view);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("projection", projection);
+        float alien_time = glfwGetTime();
+        shaderPrograms[alienProgramIndex]->set_uniform_value("time", alien_time);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("material.ambient", material.ambient);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("material.diffuse", material.diffuse);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("material.specular", material.specular);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("material.gloss", material.gloss);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("light.position", light.position);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("light.ambient", light.ambient);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("light.diffuse", light.diffuse);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("light.specular", light.specular);
+        shaderPrograms[alienProgramIndex]->set_uniform_value("CameraPos", glm::vec3(cameraModel[3]));
+        alien.object->render();
+        shaderPrograms[alienProgramIndex]->release();
+        // for fur it need to render default alien as well
+        if(alienProgramIndex == 3){
+            shaderPrograms[0]->use();  
+            shaderPrograms[0]->set_uniform_value("model", alienModel);
+            shaderPrograms[0]->set_uniform_value("view", view);
+            shaderPrograms[0]->set_uniform_value("projection", projection);
+            alien.object->render();
+            shaderPrograms[0]->release();
+        }
+    }
 
     // 渲染 UFO
     shaderPrograms[ufoProgramIndex]->use();
@@ -312,16 +324,7 @@ void render(){
     shaderPrograms[ufoProgramIndex]->set_uniform_value("CameraPos", glm::vec3(cameraModel[3]));
     ufo.object->render();
     shaderPrograms[ufoProgramIndex]->release();
-    // for fur it need to render default alien as well
-    if(alienProgramIndex == 2){
-        shaderPrograms[0]->use();  
-        shaderPrograms[0]->set_uniform_value("model", alienModel);
-        shaderPrograms[0]->set_uniform_value("view", view);
-        shaderPrograms[0]->set_uniform_value("projection", projection);
-        alien.object->render();
-        shaderPrograms[0]->release();
-    }
-
+   
     // TODO 4-2 
     // Rendering cubemap environment
     glDepthFunc(GL_LEQUAL);
@@ -398,34 +401,39 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 
     // shader program selection
     if (key == GLFW_KEY_0 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        alienProgramIndex = 0;
+        show_alien = false;
+        // alienProgramIndex = 0;
         ufoProgramIndex = 0;
-        // float global_time = glfwGetTime();
-        // alien.scale = glm::vec3(0.2f) + glm::vec3(sin(global_time) * 0.5f);
     }
     if (key == GLFW_KEY_1 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        alienProgramIndex = 1;
+        show_alien = false;
+        // alienProgramIndex = 1;
         ufoProgramIndex = 2;
     }
     if (key == GLFW_KEY_2 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        alienProgramIndex = 2;
+        show_alien = true;
+        alienProgramIndex = 1;
         ufoProgramIndex = 2;
     }
     if (key == GLFW_KEY_3 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
+        show_alien = true;
         alienProgramIndex = 3;
-        ufoProgramIndex = 3;
+        ufoProgramIndex = 2;
     }
     if (key == GLFW_KEY_4 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        alienProgramIndex = 1;
+        show_alien = true;
+        alienProgramIndex = 4;
         ufoProgramIndex = 4;
     }
     if (key == GLFW_KEY_5 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
+        show_alien = true;
         alienProgramIndex = 5;
-        ufoProgramIndex = 1;
+        ufoProgramIndex = 5;
     }
     if (key == GLFW_KEY_6 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
+        show_alien = true;
         alienProgramIndex = 6;
-        ufoProgramIndex = 1;
+        ufoProgramIndex = 6;
     }
     // camera movement
     float cameraSpeed = 0.5f;
