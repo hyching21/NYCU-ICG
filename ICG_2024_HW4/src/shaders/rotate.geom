@@ -9,15 +9,7 @@ in VS_OUT {
 
 out vec2 TexCoords;
 
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
 uniform float time;
-
-float speed = -3;
-float accelerationValue = 10;
-float floorY = -0.5;
-float exploSpeed = 0.4;
 
 vec3 GetNormal(){
    vec3 a = vec3(gl_in[0].gl_Position) - vec3(gl_in[1].gl_Position);
@@ -25,29 +17,26 @@ vec3 GetNormal(){
    return normalize(cross(a, b));
 } 
 
-vec4 transformPosition(vec4 position, vec3 normal, float timeOffset, bool isBounce) {
-    vec3 offset = normal * (exploSpeed * timeOffset);
-    vec3 worldPos = vec3(position) + offset;
-    worldPos.y -= speed * timeOffset + 0.5 * accelerationValue * pow(timeOffset, 2.0);
+float rand(vec3 seed){
+    return fract(sin(dot(seed ,vec3(12.9898,78.233,45.164))) * 43758.5453);
+}
 
-    if (worldPos.y < floorY && isBounce) {
-        worldPos.y = floorY;
-    }
-
-    return vec4(worldPos, 1.0);
+vec4 sandify(vec4 position, float timeOffset){
+    vec3 randomOffset = vec3(
+        rand(position.xyz + timeOffset) - 0.5,
+        rand(position.yzx + timeOffset) - 0.5,
+        rand(position.zxy + timeOffset) - 0.5
+    ) * 2.0;
+    float gravity = -timeOffset * 0.5;
+    return position + vec4(randomOffset.x, randomOffset.y + gravity, randomOffset.z, 0.0);
 }
 
 void main() {
-    vec3 normal = GetNormal();
-    float realTime = 5.0;
-    vec3 centroid = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz + gl_in[2].gl_Position.xyz) / 3.0;
-
+    float timeOffset = (sin(time) + 1.0) / 2.0;
     for(int i = 0; i < 3; i++){
+        gl_Position = sandify(gl_in[i].gl_Position, timeOffset);
         TexCoords = gs_in[i].TexCoord;
-        vec4 newPos = transformPosition(gl_in[i].gl_Position, normal, realTime, true);
-        gl_Position = projection * view * model * newPos;
         EmitVertex();
     }
     EndPrimitive();
 }
-https://zh.wikipedia.org/zh-tw/%E5%87%A0%E4%BD%95%E5%A4%84%E7%90%86
