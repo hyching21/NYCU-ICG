@@ -10,6 +10,8 @@
 #include "header/shader.h"
 #include "header/stb_image.h"
 
+#include <fstream>
+
 void framebufferSizeCallback(GLFWwindow *window, int width, int height);
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
 unsigned int loadCubemap(std::vector<string> &mFileName);
@@ -51,7 +53,7 @@ unsigned int cubemapVAO, cubemapVBO;
 
 // shader programs 
 int alienProgramIndex = 0;
-int ufoProgramIndex = 0;
+int ufoProgramIndex = 1;
 
 std::vector<shader_program_t*> shaderPrograms;
 shader_program_t* cubemapShader;
@@ -70,8 +72,11 @@ glm::mat4 ufoModel;
 glm::mat4 cameraModel;
 
 // for HW4 parameter
-bool explosion = false;
 bool show_alien = false;
+float increase = 0.0;
+float explode = 0.0;
+bool alienRotate = false;
+bool alienStay = false;
 
 //////////////////////////////////////////////////////////////////////////
 // Parameter setup, 
@@ -93,8 +98,8 @@ void light_setup(){
 void material_setup(){
     material.ambient = glm::vec3(1.0);
     material.diffuse = glm::vec3(1.0);
-    material.specular = glm::vec3(0.7);
-    material.gloss = 10.5;
+    material.specular = glm::vec3(1.0);
+    material.gloss = 32.0;
 }
 //////////////////////////////////////////////////////////////////////////
 
@@ -111,15 +116,15 @@ void model_setup(){
 #endif
     // alien
     alienModel = glm::mat4(1.0f);
-    alien.position = glm::vec3(-50.0f, 0.0f, 0.0f);
-    alien.scale = glm::vec3(0.2f, 0.2f, 0.2f);
+    alien.position = glm::vec3(-100.0f, 0.0f, 0.0f);
+    alien.scale = glm::vec3(0.18f, 0.18f, 0.18f);
     alien.rotation = glm::vec3(glm::radians(-90.0f), 0.0f, 0.0f);
     alien.object = new Object(objDir + "alien.obj");
     alien.object->load_to_buffer();
     alien.object->load_texture(textureDir + "alien.jpg");
     // ufo
     ufoModel = glm::mat4(1.0f);
-    ufo.position = glm::vec3(150.0f, 0.0f, 0.0f);
+    ufo.position = glm::vec3(-550.0f, 0.0f, 0.0f);
     ufo.scale = glm::vec3(0.17f, 0.17f, 0.17f);
     ufo.rotation = glm::vec3(glm::radians(-90.0f), 0.0f, 0.0f);
     ufo.object = new Object(objDir + "ufo.obj");
@@ -139,7 +144,7 @@ void shader_setup(){
 #endif
 
     std::vector<std::string> shadingMethod = {
-        "default", "gouraud", "alert", "fur", "explode", "grow", "rotate"
+        "default", "gouraud", "alert", "fur", "split", "grow", "noise", "explosion"
     };
 
     for(int i=0; i<shadingMethod.size(); i++){
@@ -150,7 +155,9 @@ void shader_setup(){
         shader_program_t* shaderProgram = new shader_program_t();
         shaderProgram->create();
         shaderProgram->add_shader(vpath, GL_VERTEX_SHADER);
-        shaderProgram->add_shader(gpath, GL_GEOMETRY_SHADER);
+        if(std::ifstream(gpath)){
+            shaderProgram->add_shader(gpath, GL_GEOMETRY_SHADER);
+        }
         shaderProgram->add_shader(fpath, GL_FRAGMENT_SHADER);
         shaderProgram->link_shader();
         shaderPrograms.push_back(shaderProgram);
@@ -239,18 +246,40 @@ void update(){
 // Update the alien position, camera position, rotation, etc.
 
     alien.position.y += moveDir;
-    if(alien.position.y > 20.0 || alien.position.y < -100.0){
+    if(alien.position.y > 20.0 || alien.position.y < -20.0){
         moveDir = -moveDir;
     }
+    static float alienRotationAngle = 0.0f;
     
     alienModel = glm::mat4(1.0f);
     alienModel = glm::scale(alienModel, alien.scale);
-    alienModel = glm::rotate(alienModel, alien.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-    alienModel = glm::translate(alienModel, alien.position);
+
+    if(!alienRotate){
+        alienModel = glm::translate(alienModel, alien.position);
+        alienModel = glm::rotate(alienModel, alien.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+    }
+    else{
+        // alien rotate around UFO
+        alienModel = glm::translate(alienModel, ufo.position);
+
+        if(!alienStay){
+            alienRotationAngle += glm::radians(1.0f);
+            if (alienRotationAngle > glm::two_pi<float>()) {
+                alienRotationAngle -= glm::two_pi<float>(); 
+            }
+        }
+
+        alienModel = glm::rotate(alienModel, alienRotationAngle, glm::vec3(0.0f, -1.0f, 0.0f));
+        alienModel = glm::translate(alienModel, glm::vec3(-180.0f, 0.0f, 0.0f));
+
+        alienModel = glm::rotate(alienModel, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        alienModel = glm::rotate(alienModel, alien.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+        
+    }
     
     // rotate the ufo
     static float ufoRotationAngle = 0.0f; 
-    ufoRotationAngle += glm::radians(1.0f);
+    ufoRotationAngle += glm::radians(2.0f);
     if (ufoRotationAngle > glm::two_pi<float>()) {
         ufoRotationAngle -= glm::two_pi<float>(); 
     }
@@ -265,6 +294,9 @@ void update(){
     cameraModel = glm::mat4(1.0f);
     cameraModel = glm::rotate(cameraModel, glm::radians(camera.rotationY), camera.up);
     cameraModel = glm::translate(cameraModel, camera.position);
+
+    increase += 0.04;
+    explode = explode + increase;
 }
 
 void render(){
@@ -276,7 +308,6 @@ void render(){
     glm::mat4 view = glm::lookAt(glm::vec3(cameraModel[3]), glm::vec3(0.0), camera.up);
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
     
-    // 渲染 Alien
     if (show_alien){
         shaderPrograms[alienProgramIndex]->use();
         shaderPrograms[alienProgramIndex]->set_uniform_value("model", alienModel);
@@ -293,6 +324,7 @@ void render(){
         shaderPrograms[alienProgramIndex]->set_uniform_value("light.diffuse", light.diffuse);
         shaderPrograms[alienProgramIndex]->set_uniform_value("light.specular", light.specular);
         shaderPrograms[alienProgramIndex]->set_uniform_value("CameraPos", glm::vec3(cameraModel[3]));
+        shaderPrograms[alienProgramIndex]->set_uniform_value("explode", explode);
         alien.object->render();
         shaderPrograms[alienProgramIndex]->release();
         // for fur it need to render default alien as well
@@ -306,7 +338,7 @@ void render(){
         }
     }
 
-    // 渲染 UFO
+    // render UFO
     shaderPrograms[ufoProgramIndex]->use();
     shaderPrograms[ufoProgramIndex]->set_uniform_value("model", ufoModel);
     shaderPrograms[ufoProgramIndex]->set_uniform_value("view", view);
@@ -322,10 +354,10 @@ void render(){
     shaderPrograms[ufoProgramIndex]->set_uniform_value("light.diffuse", light.diffuse);
     shaderPrograms[ufoProgramIndex]->set_uniform_value("light.specular", light.specular);
     shaderPrograms[ufoProgramIndex]->set_uniform_value("CameraPos", glm::vec3(cameraModel[3]));
+    shaderPrograms[ufoProgramIndex]->set_uniform_value("explode", explode);
     ufo.object->render();
     shaderPrograms[ufoProgramIndex]->release();
-   
-    // TODO 4-2 
+
     // Rendering cubemap environment
     glDepthFunc(GL_LEQUAL);
     cubemapShader->use();
@@ -402,38 +434,45 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     // shader program selection
     if (key == GLFW_KEY_0 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = false;
-        // alienProgramIndex = 0;
-        ufoProgramIndex = 0;
+        ufoProgramIndex = 1;  // gouraud
     }
     if (key == GLFW_KEY_1 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = false;
-        // alienProgramIndex = 1;
-        ufoProgramIndex = 2;
+        ufoProgramIndex = 5;  // grow
     }
     if (key == GLFW_KEY_2 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        show_alien = true;
-        alienProgramIndex = 1;
-        ufoProgramIndex = 2;
+        show_alien = false;
+        ufoProgramIndex = 2;  // alert
     }
     if (key == GLFW_KEY_3 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = true;
-        alienProgramIndex = 3;
-        ufoProgramIndex = 2;
+        alienProgramIndex = 1;  // gouraud
+        alien.position = ufo.position + glm::vec3(-180.0f, 0.0f, 0.0f);
+        ufoProgramIndex = 2;  // alert
     }
     if (key == GLFW_KEY_4 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = true;
-        alienProgramIndex = 4;
-        ufoProgramIndex = 4;
+        alienProgramIndex = 3;  // fur
+        ufoProgramIndex = 2;  // alert
     }
+    // K
     if (key == GLFW_KEY_5 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = true;
-        alienProgramIndex = 5;
-        ufoProgramIndex = 5;
+        alienProgramIndex = 3;  // fur
+        ufoProgramIndex = 6;  // noise
     }
     if (key == GLFW_KEY_6 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         show_alien = true;
-        alienProgramIndex = 6;
-        ufoProgramIndex = 6;
+        alienStay = true;  // alien stop rotating
+        alienProgramIndex = 4;   // noise
+        ufoProgramIndex = 6;   // split
+    }
+    if (key == GLFW_KEY_7 && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
+        show_alien = true;
+        alienProgramIndex = 7;
+        ufoProgramIndex = 7;
+        explode = 0;
+        increase = 0;
     }
     // camera movement
     float cameraSpeed = 0.5f;
@@ -446,6 +485,15 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     if (key == GLFW_KEY_D && (action == GLFW_REPEAT || action == GLFW_PRESS))
         camera.rotationY += 10.0;
     
+    // UFO movement
+    if (key == GLFW_KEY_J && (action == GLFW_REPEAT || action == GLFW_PRESS))
+        ufo.position.x -= 10.0;
+    if (key == GLFW_KEY_L && (action == GLFW_REPEAT || action == GLFW_PRESS))
+        ufo.position.x += 10.0;
+
+    // alien rotate around UFO
+    if (key == GLFW_KEY_K && (action == GLFW_REPEAT || action == GLFW_PRESS))
+        alienRotate = !alienRotate;
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
