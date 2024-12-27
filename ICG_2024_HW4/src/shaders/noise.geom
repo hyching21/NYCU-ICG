@@ -11,12 +11,6 @@ out vec2 TexCoords;
 
 uniform float time;
 
-vec3 GetNormal(){
-   vec3 a = vec3(gl_in[0].gl_Position) - vec3(gl_in[1].gl_Position);
-   vec3 b = vec3(gl_in[2].gl_Position) - vec3(gl_in[1].gl_Position);
-   return normalize(cross(a, b));
-} 
-
 float rand(vec3 seed){
     return fract(sin(dot(seed ,vec3(12.9898,78.233,45.164))) * 43758.5453);
 }
